@@ -1,17 +1,11 @@
 import { ref, computed } from "vue";
-import type { Ref } from "vue";
+import { defineStore } from "pinia";
 import type { Expense, Transfer, Balance } from "~/types";
-import { useParticipants } from "./useParticipants";
+import { useParticipantsStore } from "~/store/participant";
+import { storeToRefs } from "pinia";
 
-export function useExpenseSplitter() {
-  const {
-    participants,
-    newParticipant,
-    participantError,
-    addParticipant,
-    removeParticipant,
-    canRemoveParticipant,
-  } = useParticipants();
+export const useExpenseSplitterStore = defineStore("expenseSplitter", () => {
+  const { participants } = storeToRefs(useParticipantsStore());
 
   const expenses = ref<Expense[]>([]);
   const settlements = ref<Transfer[]>([]);
@@ -35,6 +29,7 @@ export function useExpenseSplitter() {
       payer: newExpense.value.payer,
       amount: parseFloat(newExpense.value.amount as string),
       description: newExpense.value.description,
+      timestamp: Date.now(),
     });
 
     newExpense.value = {
@@ -60,12 +55,12 @@ export function useExpenseSplitter() {
 
     expenses.forEach((expense) => {
       const perPerson = expense.amount / participants.length;
-      balances[expense.payer] += expense.amount;
+      // First subtract the per-person share from everyone (including payer)
       participants.forEach((p) => {
-        if (p !== expense.payer) {
-          balances[p] -= perPerson;
-        }
+        balances[p] -= perPerson;
       });
+      // Then add the full amount to the payer
+      balances[expense.payer] += expense.amount;
     });
 
     return balances;
@@ -78,7 +73,6 @@ export function useExpenseSplitter() {
   const calculateSettlements = () => {
     const balances = calculateBalances(expenses.value, participants.value);
 
-    // Separa debitori e creditori
     const debtors: Balance[] = [];
     const creditors: Balance[] = [];
 
@@ -91,11 +85,9 @@ export function useExpenseSplitter() {
       }
     });
 
-    // Ordina per importo decrescente
     debtors.sort((a, b) => b.amount - a.amount);
     creditors.sort((a, b) => b.amount - a.amount);
 
-    // Calcola i trasferimenti ottimali
     const transfers: Transfer[] = [];
     let i = 0,
       j = 0;
@@ -112,24 +104,25 @@ export function useExpenseSplitter() {
           amount: roundAmount(amount),
         });
       }
+      console.debug(
+        `Transfer: ${debtors[i].person} -> ${creditors[j].person} = ${amount}`
+      );
 
       debtors[i].amount -= amount;
       creditors[j].amount -= amount;
 
+      console.debug(
+        `Debt[${i}] = ${debtors[i].amount}, Credit[${j}] = ${creditors[j].amount}`
+      );
       if (debtors[i].amount < 0.01) i++;
       if (creditors[j].amount < 0.01) j++;
     }
 
+    console.debug(`i = ${i}, j = ${j}`);
     settlements.value = transfers;
   };
 
   return {
-    participants,
-    newParticipant,
-    participantError,
-    addParticipant,
-    removeParticipant,
-    canRemoveParticipant,
     expenses,
     settlements,
     newExpense,
@@ -138,5 +131,7 @@ export function useExpenseSplitter() {
     addExpense,
     removeExpense,
     calculateSettlements,
+    roundAmount,
+    calculateBalances,
   };
-}
+});

@@ -1,75 +1,74 @@
-# Nuxt Minimal Starter
+# SplitMoney
 
-Look at the [Nuxt documentation](https://nuxt.com/docs/getting-started/introduction) to learn more.
+A simple expense splitting application built with Nuxt 3 and Pinia to help groups track and settle shared expenses.
 
-## Setup
+## Features
 
-Make sure to install dependencies:
+- Add and manage participants
+- Track group expenses
+- Calculate individual balances
+- Generate optimal settlement plans
+- Responsive design for mobile and desktop
+
+## Tech Stack
+
+- [Nuxt 3](https://nuxt.com/) - Vue.js Framework
+- [Pinia](https://pinia.vuejs.org/) - State Management
+- [TailwindCSS](https://tailwindcss.com/) - Styling
+- [Vitest](https://vitest.dev/) - Testing Framework
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or later)
+- npm or yarn
+
+### Installation
 
 ```bash
-# npm
-npm install
+# Clone the repository
+git clone https://github.com/yourusername/splitmoney.git
 
-# pnpm
-pnpm install
+# Navigate to project directory
+cd splitmoney
 
-# yarn
+# Install dependencies
 yarn install
 
-# bun
-bun install
-```
-
-## Development Server
-
-Start the development server on `http://localhost:3000`:
-
-```bash
-# npm
-npm run dev
-
-# pnpm
-pnpm dev
-
-# yarn
+# Start development server
 yarn dev
-
-# bun
-bun run dev
 ```
 
-## Production
+## Project Structure
 
-Build the application for production:
-
-```bash
-# npm
-npm run build
-
-# pnpm
-pnpm build
-
-# yarn
-yarn build
-
-# bun
-bun run build
+```
+splitmoney/
+├── components/          # Vue components
+│   └── participant/     # Participant-related components
+├── store/              # Pinia stores
+│   ├── expense.ts      # Expense management
+│   └── participant.ts  # Participant management
+├── types/              # TypeScript type definitions
+├── __tests__/         # Test files
+└── ...
 ```
 
-Locally preview production build:
+## Usage
 
-```bash
-# npm
-npm run preview
+1. Add participants to your group
+2. Record expenses, specifying who paid and the amount
+3. View the calculated balances
+4. Use the generated settlement plan to settle debts
 
-# pnpm
-pnpm preview
+## Contributing
 
-# yarn
-yarn preview
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
-# bun
-bun run preview
-```
+## License
 
-Check out the [deployment documentation](https://nuxt.com/docs/getting-started/deployment) for more information.
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
