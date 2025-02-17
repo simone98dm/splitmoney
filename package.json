@@ -1,5 +1,5 @@
 {
-  "name": "nuxt-app",
+  "name": "expense-splitter",
   "private": true,
   "type": "module",
   "scripts": {
@@ -13,6 +13,7 @@
   "dependencies": {
     "@nuxtjs/tailwindcss": "6.13.1",
     "@pinia/nuxt": "^0.10.1",
+    "@supabase/supabase-js": "^2.48.1",
     "nuxt": "^3.15.4",
     "pinia": "^3.0.1",
     "vue": "latest",

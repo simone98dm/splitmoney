@@ -2,6 +2,10 @@ export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   ssr: false,
   modules: ["@nuxtjs/tailwindcss", "@pinia/nuxt"],
+  runtimeConfig: {
+    supabaseUrl: process.env.NUXT_SUPABASE_URL,
+    supabaseAnonKey: process.env.NUXT_SUPABASE_ANON_KEY,
+  },
   app: {
     head: {
       title: "Expense Splitter",
