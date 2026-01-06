@@ -29,3 +29,13 @@ export interface Partecipant {
   id: number;
   name: string;
 }
+
+export interface Room {
+  id?: string;
+  name: string;
+  created_at?: string;
+  data: {
+    expenses: Expense[];
+    participants: Partecipant[];
+  };
+}

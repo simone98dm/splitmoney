@@ -1,11 +1,13 @@
 import { ref, computed } from "vue";
 import { defineStore } from "pinia";
-import type { Expense, Transfer, Balance } from "~/types";
+import type { Expense, Transfer, Balance, Room } from "~/types";
 import { useParticipantsStore } from "~/store/participant";
 import { storeToRefs } from "pinia";
 
 export const useExpenseSplitterStore = defineStore("expenseSplitter", () => {
   const { participants } = storeToRefs(useParticipantsStore());
+
+  const roomId = ref<string | null>(null);
 
   const expenses = ref<Expense[]>([]);
   const settlements = ref<Transfer[]>([]);
@@ -55,11 +57,9 @@ export const useExpenseSplitterStore = defineStore("expenseSplitter", () => {
 
     expenses.forEach((expense) => {
       const perPerson = expense.amount / participants.length;
-      // First subtract the per-person share from everyone (including payer)
       participants.forEach((p) => {
         balances[p] -= perPerson;
       });
-      // Then add the full amount to the payer
       balances[expense.payer] += expense.amount;
     });
 
@@ -122,6 +122,72 @@ export const useExpenseSplitterStore = defineStore("expenseSplitter", () => {
     settlements.value = transfers;
   };
 
+  const init = async (room: string) => {
+    try {
+      const response = await $fetch<Room>(`/api/room/${room}`);
+
+      if (!response) {
+        navigateTo("/");
+      }
+
+      roomId.value = response.id as string;
+      expenses.value = response.data.expenses;
+
+      const participantStore = useParticipantsStore();
+      participantStore.participants = response.data.participants.map(
+        (x) => x.name
+      );
+
+      calculateSettlements();
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const generateUrl = async () => {
+    try {
+      const response = await $fetch<{ id: string }>(`/api/room`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: {
+          participants: participants.value,
+          expenses: expenses.value,
+        },
+      });
+
+      if (response) {
+        const router = useRouter();
+        roomId.value = response.id;
+        router.push({ query: { room: response.id } });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const saveRoom = async () => {
+    try {
+      const response = await $fetch(`/api/room/${roomId.value}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: {
+          participants: participants.value,
+          expenses: expenses.value,
+        },
+      });
+
+      if (response) {
+        console.log("Room saved");
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   return {
     expenses,
     settlements,
@@ -133,5 +199,9 @@ export const useExpenseSplitterStore = defineStore("expenseSplitter", () => {
     calculateSettlements,
     roundAmount,
     calculateBalances,
+    init,
+    generateUrl,
+    roomId,
+    saveRoom,
   };
 });

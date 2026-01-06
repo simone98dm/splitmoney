@@ -1,6 +1,5 @@
 <template>
   <div class="p-4">
-    <h2 class="text-2xl text-center font-bold mb-6">Divisione Spese</h2>
     <ParticipantPanel />
     <ExpensePanel />
   </div>
