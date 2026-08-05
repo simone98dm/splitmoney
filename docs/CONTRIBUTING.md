@@ -142,7 +142,7 @@ due to floating point precision issues.
 ```typescript
 // Good
 interface Expense {
-  id: number;
+  id: string;
   amount: number;
 }
 
@@ -289,16 +289,17 @@ Aim for:
 
 ```typescript
 /**
- * Calculates optimal settlement plan using greedy algorithm.
- * Minimizes number of transactions by matching largest debts with largest credits.
+ * Turns a balance sheet into the payment plan that clears it.
  *
- * @param expenses - Array of all expenses
- * @param participants - Array of participant names
- * @returns Array of transfers needed to settle all debts
+ * The exact minimum number of transfers is NP-hard, so this runs two passes:
+ * exact pairing first (a debtor and creditor owing the same amount clear each
+ * other in one transfer), then greedy largest-against-largest on the rest.
+ *
+ * @param balancesInCents - Net position per person, must sum to zero
+ * @returns Transfers that settle every cent
  */
-const calculateSettlements = (
-  expenses: Expense[],
-  participants: string[]
+const settleDebts = (
+  balancesInCents: Record<string, number>
 ): Transfer[] => {
   // Implementation
 };
@@ -316,6 +317,7 @@ Update README.md if you:
 ## Pull Request Process
 
 1. **Ensure all tests pass**: `yarn test`
+1. **Ensure types check**: `yarn typecheck`
 2. **Update documentation** as needed
 3. **Fill out PR template** completely
 4. **Link related issues** using keywords (Closes #123)

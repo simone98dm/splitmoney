@@ -124,18 +124,40 @@ Static assets:
 │  ┌────────────────────────────────────┐  │
 │  │  State                             │  │
 │  │  - expenses: Expense[]             │  │
-│  │  - settlements: Transfer[]         │  │
 │  │  - newExpense: object              │  │
+│  │  - expenseError: string            │  │
+│  └────────────────────────────────────┘  │
+│  ┌────────────────────────────────────┐  │
+│  │  Computed (derived, never stored)  │  │
+│  │  - balances                        │  │
+│  │  - settlements                     │  │
+│  │  - settlementError                 │  │
 │  └────────────────────────────────────┘  │
 │  ┌────────────────────────────────────┐  │
 │  │  Actions                           │  │
 │  │  - addExpense()                    │  │
 │  │  - removeExpense()                 │  │
-│  │  - calculateBalances()             │  │
-│  │  - calculateSettlements()          │  │
+│  │  - commitRename()                  │  │
 │  └────────────────────────────────────┘  │
 └──────────────────────────────────────────┘
+                    │ uses
+                    ▼
+┌──────────────────────────────────────────┐
+│  Pure modules (no Vue, no Pinia)         │
+│  - store/money.ts       integer cents    │
+│  - store/balance.ts     balance sheet    │
+│  - store/settlement.ts  payment plan     │
+│  - store/storage.ts     vetted I/O       │
+└──────────────────────────────────────────┘
 ```
+
+Both stores persist to `localStorage` through `store/storage.ts`, which treats
+everything read back as untrusted. Expenses and participants live under
+separate keys, so one being cleared or corrupted never takes the other down —
+an expense whose payer is no longer on the roster still keeps their money.
+
+The money logic is deliberately outside the stores: it is pure, unit-tested on
+its own, and cannot be broken by a reactivity mistake.
 
 ### Data Flow
 

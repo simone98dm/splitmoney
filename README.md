@@ -93,17 +93,20 @@ The application uses two main Pinia stores:
 
 - Manages expense list and calculations
 - Calculates total expenses and individual balances
-- Generates optimal settlement plans using a greedy algorithm
+- Generates settlement plans with a two-pass heuristic (exact pairing, then greedy)
 - Minimizes the number of transactions needed to settle debts
+- Works entirely in integer cents, so the balance sheet always sums to zero
+- Persists expenses and participants to `localStorage`, validated on the way back in
 
 ### Type Definitions
 
 ```typescript
 interface Expense {
-  id: number;
+  id: string;
   payer: string;
   amount: number;
   description: string;
+  participants: string[]; // frozen snapshot: later roster changes never re-split it
   timestamp: number;
 }
 

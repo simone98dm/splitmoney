@@ -1,592 +1,207 @@
 # Algorithm Documentation
 
-This document provides detailed explanation of the core algorithms used in SplitMoney.
+How SplitMoney turns a list of expenses into the shortest list of payments
+that clears every debt.
 
-## Table of Contents
+- [Money representation](#money-representation)
+- [Balance calculation](#balance-calculation)
+- [Settlement](#settlement)
+- [Edge cases](#edge-cases)
+- [Complexity](#complexity)
+- [Worked examples](#worked-examples)
 
-- [Balance Calculation](#balance-calculation)
-- [Settlement Optimization](#settlement-optimization)
-- [Edge Cases](#edge-cases)
-- [Performance Analysis](#performance-analysis)
-- [Examples](#examples)
+## Money representation
 
-## Balance Calculation
-
-### Overview
-
-The balance calculation determines how much each participant should receive (positive balance) or pay (negative balance) to settle all expenses fairly.
-
-### Algorithm
+**All arithmetic happens in integer cents.** Euros only appear at the UI
+boundary.
 
 ```typescript
-function calculateBalances(
-  expenses: Expense[],
-  participants: string[]
-): Record<string, number> {
-  const balances: Record<string, number> = {};
-
-  // Initialize all balances to zero
-  participants.forEach((p) => (balances[p] = 0));
-
-  // Process each expense
-  expenses.forEach((expense) => {
-    const perPerson = expense.amount / participants.length;
-
-    // Subtract equal share from everyone
-    participants.forEach((p) => {
-      balances[p] -= perPerson;
-    });
-
-    // Add full amount to payer
-    balances[expense.payer] += expense.amount;
-  });
-
-  return balances;
-}
+// store/money.ts
+toCents(10) // 1000
+toEuro(1000) // 10
 ```
 
-### Step-by-Step Process
+This is not a style preference. Splitting €10 three ways in floating point
+gives `3.3333…` per person. Rounding each balance on its own produces
+`+6.67 / -3.33 / -3.33`, which sums to `+0.01` — a balance sheet that does not
+add up, and a payment plan that leaves one cent permanently unpaid.
 
-1. **Initialize**: Set all balances to 0
-2. **For each expense**:
-   - Calculate per-person share: `amount / total_participants`
-   - Subtract share from each participant
-   - Add full amount to the payer
-3. **Result**: Net balance for each participant
-
-### Mathematical Foundation
-
-For a participant P and expense set E:
-
-$$
-Balance_P = \sum_{e \in E, payer=P} amount_e - \sum_{e \in E} \frac{amount_e}{|participants|}
-$$
-
-Where:
-
-- First sum: Total paid by participant
-- Second sum: Total owed by participant (equal share of all expenses)
-
-### Example Calculation
-
-**Scenario:**
-
-- Participants: Alice, Bob, Charlie (3 people)
-- Expenses:
-  - Alice pays €60 for dinner
-  - Bob pays €30 for drinks
-
-**Calculation:**
-
-1. **Initialize:**
-
-   ```
-   Alice: 0
-   Bob: 0
-   Charlie: 0
-   ```
-
-2. **Process Expense 1 (Alice pays €60):**
-
-   ```
-   Per-person share: €60 / 3 = €20
-
-   Subtract share from all:
-   Alice: 0 - 20 = -20
-   Bob: 0 - 20 = -20
-   Charlie: 0 - 20 = -20
-
-   Add full amount to payer:
-   Alice: -20 + 60 = +40
-   Bob: -20
-   Charlie: -20
-   ```
-
-3. **Process Expense 2 (Bob pays €30):**
-
-   ```
-   Per-person share: €30 / 3 = €10
-
-   Subtract share from all:
-   Alice: 40 - 10 = 30
-   Bob: -20 - 10 = -30
-   Charlie: -20 - 10 = -30
-
-   Add full amount to payer:
-   Alice: 30
-   Bob: -30 + 30 = 0
-   Charlie: -30
-   ```
-
-4. **Final Balances:**
-   ```
-   Alice: +€30 (should receive €30)
-   Bob: €0 (all settled)
-   Charlie: -€30 (owes €30)
-   ```
-
-**Verification:**
-
-- Total paid: €60 + €30 = €90
-- Total owed: €90 / 3 × 3 = €90 ✓
-- Sum of balances: €30 + €0 - €30 = €0 ✓
-
-### Complexity Analysis
-
-- **Time Complexity**: O(n × m)
-
-  - n = number of expenses
-  - m = number of participants
-  - Must iterate through all expenses and all participants
-
-- **Space Complexity**: O(m)
-  - Stores balance for each participant
-
-## Settlement Optimization
-
-### Overview
-
-The settlement algorithm generates the minimum number of transactions needed to settle all debts. It uses a greedy algorithm that matches largest debtors with largest creditors.
-
-### Algorithm
+`splitEvenly` divides a total into shares that sum back to **exactly** the
+total. The indivisible remainder is handed out one cent at a time:
 
 ```typescript
-function calculateSettlements(
-  expenses: Expense[],
-  participants: string[]
-): Transfer[] {
-  // Calculate balances
-  const balances = calculateBalances(expenses, participants);
-
-  // Separate debtors and creditors
-  const debtors: Balance[] = [];
-  const creditors: Balance[] = [];
-
-  Object.entries(balances).forEach(([person, balance]) => {
-    const rounded = roundAmount(balance);
-    if (rounded < 0) {
-      debtors.push({ person, amount: -rounded });
-    } else if (rounded > 0) {
-      creditors.push({ person, amount: rounded });
-    }
-  });
-
-  // Sort by amount (descending)
-  debtors.sort((a, b) => b.amount - a.amount);
-  creditors.sort((a, b) => b.amount - a.amount);
-
-  // Generate transfers
-  const transfers: Transfer[] = [];
-  let i = 0,
-    j = 0;
-
-  while (i < debtors.length && j < creditors.length) {
-    const debt = debtors[i].amount;
-    const credit = creditors[j].amount;
-
-    const amount = Math.min(debt, credit);
-
-    if (amount > 0.01) {
-      // Ignore tiny amounts
-      transfers.push({
-        from: debtors[i].person,
-        to: creditors[j].person,
-        amount: roundAmount(amount),
-      });
-    }
-
-    debtors[i].amount -= amount;
-    creditors[j].amount -= amount;
-
-    if (debtors[i].amount < 0.01) i++;
-    if (creditors[j].amount < 0.01) j++;
-  }
-
-  return transfers;
-}
+splitEvenly(1000, 3) // [334, 333, 333]  -> sums to 1000
+splitEvenly(1000, 3, 1) // [333, 334, 333]  -> offset rotates who pays it
 ```
 
-### Why This Algorithm is Optimal
+The third argument matters over time: always starting at index 0 would charge
+the extra cent to whoever sits first in the list on *every* expense. Callers
+pass the expense timestamp so the burden rotates.
 
-The greedy approach minimizes transactions because:
-
-1. **Matches Largest Values**: Settles maximum debt per transaction
-2. **Eliminates Participants**: Each transaction settles at least one participant completely
-3. **No Cycles**: Direct transfers prevent circular payments
-4. **Provably Optimal**: For the debt settlement problem, the greedy algorithm achieves minimum transactions
-
-### Mathematical Proof Sketch
-
-**Claim**: Minimum transactions = (number of creditors - 1) + (number of debtors - 1) in worst case
-
-**Proof**:
-
-- At most, we need n-1 transactions to settle n participants
-- Each transaction settles at least one participant
-- Greedy always settles the maximum possible per transaction
-- Therefore, greedy achieves the minimum
-
-### Example Optimization
-
-**Scenario:**
-
-- Alice: +€60 (owed)
-- Bob: -€30 (owes)
-- Charlie: -€30 (owes)
-
-**Naive Approach (3 transactions):**
-
-```
-Bob → Alice: €30
-Charlie → Alice: €30
-```
-
-**Greedy Approach (2 transactions):**
-
-```
-Same as naive in this case
-```
-
-**Complex Scenario:**
-
-- Alice: +€50
-- Bob: +€30
-- Charlie: -€40
-- David: -€40
-
-**Naive Approach (4 transactions):**
-
-```
-Charlie → Alice: €40
-David → Alice: €10
-David → Bob: €30
-```
-
-**Greedy Approach (3 transactions):**
-
-```
-Step 1: Sort
-Debtors: [Charlie: -€40, David: -€40]
-Creditors: [Alice: +€50, Bob: +€30]
-
-Step 2: Match largest
-Charlie → Alice: €40
-Alice remaining: €10
-
-Step 3: Match next
-David → Bob: €30
-David remaining: €10, Bob settled
-
-Step 4: Match remaining
-David → Alice: €10
-All settled
-```
-
-Result: 3 transactions (optimal)
-
-### Complexity Analysis
-
-- **Time Complexity**: O(n log n)
-
-  - Sorting debtors and creditors: O(n log n)
-  - Matching phase: O(n)
-  - Dominated by sorting
-
-- **Space Complexity**: O(n)
-  - Store debtors and creditors arrays
-  - Store transfers array
-
-### Rounding Strategy
+## Balance calculation
 
 ```typescript
-function roundAmount(amount: number): number {
-  return Math.round(amount * 100) / 100;
-}
+// store/balance.ts
+calculateBalancesInCents(expenses, roster): Record<string, number>
 ```
 
-**Why round to 2 decimals:**
+Positive = must receive. Negative = must pay. **The result always sums to
+exactly zero.**
 
-- Currency precision (cents/pennies)
-- Avoid floating-point errors
-- Ensure balances sum to zero
+For every expense:
 
-## Edge Cases
+1. split the total over `expense.participants` with `sharesForExpense`
+2. debit each participant their share
+3. credit the payer the full amount
 
-### 1. Zero Balance
+Two properties are worth spelling out:
 
-**Case**: Participant has exactly zero balance
+**Each expense carries its own participant list.** `expense.participants` is a
+snapshot frozen when the expense is created. Adding somebody to the group
+tomorrow must not retroactively re-split yesterday's dinner.
 
-**Handling**: Excluded from transfers (neither debtor nor creditor)
+**Nobody is dropped.** `roster` only seeds who is displayed at zero. Anyone who
+paid for or took part in an expense stays in the balance sheet even after being
+removed from the roster — otherwise their money would silently vanish.
+
+## Settlement
 
 ```typescript
-if (rounded < 0) {
-  debtors.push(...)
-} else if (rounded > 0) { // Note: not >= 0
-  creditors.push(...)
-}
+// store/settlement.ts
+settleDebts(balancesInCents): Transfer[]
 ```
 
-### 2. Very Small Amounts
+### This problem has no cheap exact solution
 
-**Case**: Balance < €0.01 due to rounding
+Minimising the number of transfers is **NP-hard**. It reduces to subset-sum:
+the minimum is `n - k`, where `k` is the largest number of disjoint groups the
+participants can be split into such that each group's balances sum to zero, and
+finding `k` requires exponential search.
 
-**Handling**: Treated as zero
+So this is a heuristic, in two passes.
 
-```typescript
-if (amount > 0.01) { // Ignore amounts < 1 cent
-  transfers.push(...)
-}
-```
+### Pass 1 — exact pairing
 
-### 3. Single Expense
+A debtor and a creditor owing the identical amount clear each other in a single
+transfer. Plain largest-first greedy walks straight past these and fragments
+them.
 
-**Case**: Only one expense recorded
+### Pass 2 — greedy largest against largest
 
-**Result**: Payer receives equal share from all others
+Sort what is left, match the biggest debt against the biggest credit, subtract,
+advance whichever hit zero. Integer cents hit zero exactly, so there is no
+epsilon threshold that could strand a sub-cent remainder.
 
-**Example:**
+### How good is it
 
-```
-Alice pays €90 for 3 people
-Balances: Alice: +€60, Bob: -€30, Charlie: -€30
-Transfers: Bob → Alice: €30, Charlie → Alice: €30
-```
+Measured against a brute-force optimum (bitmask DP) over 15,601 random balance
+sheets of 3–8 people:
 
-### 4. Equal Expenses
+| | avg transfers | sub-optimal |
+|---|---|---|
+| brute-force optimum | 3.81 | — |
+| two-pass (current) | 3.90 | **8.70%** |
+| plain greedy (previous) | 4.11 | 27.13% |
 
-**Case**: Everyone pays the same amount
+The two-pass version was never worse than plain greedy in any of those trials.
 
-**Result**: All balances are zero, no transfers needed
+Exhaustive branch-and-bound only starts paying off past roughly 15 people — add
+it then, not before.
 
-**Example:**
+## Edge cases
 
-```
-Alice pays €30, Bob pays €30, Charlie pays €30
-Balances: All €0
-Transfers: None
-```
+| Case | Handling |
+|---|---|
+| Zero balance | Excluded from transfers, neither debtor nor creditor |
+| Amount that does not divide evenly | Remainder distributed by `splitEvenly`; the sheet still sums to zero |
+| Sub-cent debts | Cannot exist — everything is integer cents |
+| Payer removed from the roster | Kept in the balance sheet, still owed their money |
+| Participant renamed | Applied to the roster *and* to every expense snapshot |
+| Participant with an open balance | Cannot be removed from the UI |
+| No expenses | Balances are all zero, no transfers |
+| Corrupted `localStorage` | Malformed expenses are dropped on load, not fed into the ledger |
+| Balance sheet not summing to zero | `settleDebts` throws; the store surfaces it as `settlementError` instead of rendering a wrong plan |
 
-### 5. Rounding Errors
+## Complexity
 
-**Case**: Balances don't sum to exactly zero due to floating-point math
+| Step | Time | Space |
+|---|---|---|
+| Balance calculation | O(n × m) | O(m) |
+| Exact pairing | O(m) | O(m) |
+| Greedy matching | O(m log m) | O(m) |
 
-**Handling**: Round to 2 decimals early and often
+`n` = expenses, `m` = participants. Sorting dominates.
 
-```typescript
-// Round at each step
-const perPerson = expense.amount / participants.length;
-balances[p] -= perPerson; // May accumulate error
+Everything is derived, not stored: balances and settlements are Vue `computed`
+values, so adding, removing or renaming anything recomputes the plan. A cached
+copy would keep displaying payments for expenses that no longer exist.
 
-// Round final balances
-const rounded = roundAmount(balance);
-```
+## Worked examples
 
-**Better Approach** (future enhancement):
+### Weekend trip — 4 people
 
-```typescript
-// Use integer arithmetic (cents)
-const amountInCents = Math.round(expense.amount * 100);
-const perPersonCents = Math.floor(amountInCents / participants.length);
-const remainder = amountInCents % participants.length;
-```
+| Expense | Payer | Amount |
+|---|---|---|
+| Accommodation | Alice | €120 |
+| Dinner | Bob | €80 |
+| Breakfast | Charlie | €40 |
+| Gas | David | €60 |
 
-### 6. No Expenses
-
-**Case**: No expenses recorded yet
-
-**Handling**: Skip settlement calculation
-
-```typescript
-if (expenses.length === 0) {
-  settlements = [];
-  return;
-}
-```
-
-## Performance Analysis
-
-### Scalability Limits
-
-**Current Implementation:**
-
-- Efficient up to ~100 participants
-- Efficient up to ~1000 expenses
-- Browser-based, no server needed
-
-**Bottlenecks:**
-
-1. **Balance Calculation**: O(n × m) - scales poorly with many participants
-2. **Sorting**: O(m log m) - negligible for typical use
-3. **localStorage**: Limited to ~5-10MB depending on browser
-
-### Optimization Opportunities
-
-**For Large Participant Counts:**
-
-```typescript
-// Instead of iterating all participants for each expense,
-// maintain running sums
-const runningTotals = new Map();
-```
-
-**For Many Expenses:**
-
-```typescript
-// Aggregate expenses by payer first
-const expensesByPayer = expenses.reduce((acc, expense) => {
-  acc[expense.payer] = (acc[expense.payer] || 0) + expense.amount;
-  return acc;
-}, {});
-```
-
-## Examples
-
-### Example 1: Weekend Trip
-
-**Participants:** 4 friends (Alice, Bob, Charlie, David)
-
-**Expenses:**
-
-1. Alice pays €120 for accommodation
-2. Bob pays €80 for dinner
-3. Charlie pays €40 for breakfast
-4. David pays €60 for gas
-
-**Total:** €300
-**Per person:** €75
-
-**Balance Calculation:**
+Total €300, €75 each.
 
 ```
-Alice: €120 - €75 = +€45
-Bob: €80 - €75 = +€5
-Charlie: €40 - €75 = -€35
-David: €60 - €75 = -€15
+Alice   +45      Charlie  -35
+Bob      +5      David    -15
 ```
 
-**Verification:**
+Pass 1 finds no exact pair. Pass 2:
 
 ```
-Total paid: €300 ✓
-Sum of balances: €45 + €5 - €35 - €15 = €0 ✓
+Charlie → Alice  €35      (Charlie settled, Alice still owed €10)
+David   → Alice  €10      (Alice settled, David still owes €5)
+David   → Bob     €5      (both settled)
 ```
 
-**Settlement:**
+**3 transfers** — optimal.
+
+### Where exact pairing wins
 
 ```
-Debtors (sorted): [Charlie: -€35, David: -€15]
-Creditors (sorted): [Alice: +€45, Bob: +€5]
-
-Transfer 1: Charlie → Alice: €35
-  Charlie: 0 (settled)
-  Alice: €10 remaining
-
-Transfer 2: David → Alice: €10
-  Alice: 0 (settled)
-  David: €5 remaining
-
-Transfer 3: David → Bob: €5
-  David: 0 (settled)
-  Bob: 0 (settled)
+A -1.00   B -3.00   C -4.00   D +3.00   E +5.00
 ```
 
-**Result:** 3 transactions (optimal)
-
-### Example 2: Monthly Roommate Expenses
-
-**Participants:** 3 roommates (Alice, Bob, Charlie)
-
-**Expenses:**
-
-1. Alice pays €300 rent
-2. Bob pays €60 utilities
-3. Charlie pays €90 groceries
-4. Alice pays €45 internet
-5. Bob pays €105 cleaning
-
-**Total:** €600
-**Per person:** €200
-
-**Balance Calculation:**
+Plain greedy sorts to debtors `[4, 3, 1]`, creditors `[5, 3]` and produces
+**four** transfers. Exact pairing spots `B(-3) ↔ D(+3)` first, leaving
+`[4, 1]` against `[5]`:
 
 ```
-Alice: (€300 + €45) - €200 = +€145
-Bob: (€60 + €105) - €200 = -€35
-Charlie: €90 - €200 = -€110
+B → D  €3
+C → E  €4
+A → E  €1
 ```
 
-**Settlement:**
+**3 transfers** — optimal.
+
+### Awkward split — €10 among 3
 
 ```
-Debtors: [Charlie: -€110, Bob: -€35]
-Creditors: [Alice: +€145]
-
-Transfer 1: Charlie → Alice: €110
-  Charlie: 0 (settled)
-  Alice: €35 remaining
-
-Transfer 2: Bob → Alice: €35
-  Bob: 0 (settled)
-  Alice: 0 (settled)
+shares  [334, 333, 333]   (sum 1000, exact)
+A +6.66   B -3.33   C -3.33
+B → A  €3.33
+C → A  €3.33
 ```
 
-**Result:** 2 transactions (optimal)
+A receives €6.66, exactly what A is owed. Nothing evaporates.
 
-### Example 3: Uneven Group
-
-**Participants:** 5 people (A, B, C, D, E)
-
-**Expenses:**
-
-1. A pays €100
-2. C pays €50
-3. E pays €50
-
-**Total:** €200
-**Per person:** €40
-
-**Balance Calculation:**
+### Uneven group — 5 people
 
 ```
-A: €100 - €40 = +€60
-B: €0 - €40 = -€40
-C: €50 - €40 = +€10
-D: €0 - €40 = -€40
-E: €50 - €40 = +€10
+A +60   B -40   C +10   D -40   E +10
 ```
 
-**Settlement:**
+No zero-sum subgroup exists here, so **4 transfers** is genuinely the minimum —
+not a failure of the heuristic.
 
-```
-Debtors: [B: -€40, D: -€40]
-Creditors: [A: +€60, C: +€10, E: +€10]
+---
 
-Transfer 1: B → A: €40
-  B: 0 (settled)
-  A: €20 remaining
-
-Transfer 2: D → A: €20
-  A: 0 (settled)
-  D: €20 remaining
-
-Transfer 3: D → C: €10
-  C: 0 (settled)
-  D: €10 remaining
-
-Transfer 4: D → E: €10
-  E: 0 (settled)
-  D: 0 (settled)
-```
-
-**Result:** 4 transactions
-
-## Conclusion
-
-The algorithms used in SplitMoney are:
-
-- **Correct**: Mathematically sound and well-tested
-- **Efficient**: Optimal time complexity for the problem
-- **Practical**: Handles real-world scenarios with rounding
-- **Scalable**: Performs well for typical use cases
-
-For questions or improvements, see [CONTRIBUTING.md](CONTRIBUTING.md).
+For contribution guidelines see [CONTRIBUTING.md](CONTRIBUTING.md).

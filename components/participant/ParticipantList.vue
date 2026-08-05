@@ -18,15 +18,20 @@
               ✎
             </button>
             <button
-              v-if="
-                participantStore.canRemoveParticipant(participant, expenses)
-              "
+              v-if="isSettled(participant)"
               @click="participantStore.confirmRemove(participant)"
               class="text-red-500 hover:text-red-600"
               title="Rimuovi partecipante"
             >
               ✕
             </button>
+            <span
+              v-else
+              class="text-gray-400 text-sm"
+              title="Non rimuovibile: ha ancora un saldo aperto"
+            >
+              €
+            </span>
           </div>
         </div>
 
@@ -39,11 +44,11 @@
         <input
           v-model="editingParticipant.new"
           class="p-1 border rounded flex-grow"
-          @keyup.enter="participantStore.saveEditing(expenses)"
+          @keyup.enter="applyRename"
           @keyup.esc="participantStore.cancelEditing"
         />
         <button
-          @click="participantStore.saveEditing(expenses)"
+          @click="applyRename"
           class="text-green-500 hover:text-green-600"
           title="Salva"
         >
@@ -84,12 +89,20 @@
 </template>
 
 <script setup lang="ts">
+import ParticipantStats from "~/components/participant/ParticipantStats.vue";
 import { useExpenseSplitterStore } from "~/store/expense";
 import { useParticipantsStore } from "~/store/participant";
 import { storeToRefs } from "pinia";
 
-const { expenses } = storeToRefs(useExpenseSplitterStore());
+const splitterStore = useExpenseSplitterStore();
+const { balances } = storeToRefs(splitterStore);
 const participantStore = useParticipantsStore();
 const { sortedParticipants, editingParticipant, showRemoveConfirm } =
   storeToRefs(participantStore);
+
+/** Removing someone who is still owed (or still owes) money would hide a debt. */
+const isSettled = (participant: string) => !balances.value[participant];
+
+/** Applies the rename to the roster and the expense snapshots in one step. */
+const applyRename = () => splitterStore.commitRename();
 </script>

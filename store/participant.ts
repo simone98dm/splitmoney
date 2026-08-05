@@ -1,10 +1,22 @@
 import type { Expense, ParticipantStats } from "~/types";
-import { ref, computed, toRef } from "vue";
+import { ref, computed } from "vue";
 import { defineStore } from "pinia";
+import { toCents, toEuro } from "~/store/money";
+import { sharesForExpense } from "~/store/balance";
+import { parseNameList, readStored, writeStored } from "~/store/storage";
+
+const STORAGE_KEY = "participants";
+const DEFAULT_PARTICIPANTS = ["A", "B", "C"];
+const MAX_NAME_LENGTH = 20;
+
+export interface ParticipantRename {
+  from: string;
+  to: string;
+}
 
 export const useParticipantsStore = defineStore("participants", () => {
-  const participants = toRef<string[]>(
-    JSON.parse(localStorage.getItem("participants") || '["A", "B", "C"]')
+  const participants = ref<string[]>(
+    readStored(STORAGE_KEY, parseNameList, [...DEFAULT_PARTICIPANTS])
   );
   const newParticipant = ref("");
   const participantError = ref("");
@@ -13,7 +25,9 @@ export const useParticipantsStore = defineStore("participants", () => {
   );
   const showRemoveConfirm = ref<string | null>(null);
 
-  const sortedParticipants = computed(() => [...participants.value].sort());
+  const sortedParticipants = computed(() =>
+    [...participants.value].sort((a, b) => a.localeCompare(b))
+  );
 
   const validateParticipantName = (
     name: string,
@@ -23,8 +37,8 @@ export const useParticipantsStore = defineStore("participants", () => {
       return "Il nome non può essere vuoto";
     }
 
-    if (name.length > 20) {
-      return "Il nome non può superare i 20 caratteri";
+    if (name.length > MAX_NAME_LENGTH) {
+      return `Il nome non può superare i ${MAX_NAME_LENGTH} caratteri`;
     }
 
     if (
@@ -38,7 +52,14 @@ export const useParticipantsStore = defineStore("participants", () => {
     return "";
   };
 
-  const addParticipant = () => {
+  const persist = () => {
+    if (!writeStored(STORAGE_KEY, participants.value)) {
+      // storage full or disabled: the app still works for this session
+      participantError.value = "Impossibile salvare i partecipanti";
+    }
+  };
+
+  const addParticipant = (): boolean => {
     const name = newParticipant.value.trim();
     const error = validateParticipantName(name);
 
@@ -47,15 +68,11 @@ export const useParticipantsStore = defineStore("participants", () => {
       return false;
     }
 
-    participants.value.push(name);
+    participants.value = [...participants.value, name];
     newParticipant.value = "";
     participantError.value = "";
-    _saveIntoMemory();
+    persist();
     return true;
-  };
-
-  const _saveIntoMemory = () => {
-    localStorage.setItem("participants", JSON.stringify(participants.value));
   };
 
   const startEditing = (name: string) => {
@@ -66,34 +83,30 @@ export const useParticipantsStore = defineStore("participants", () => {
     editingParticipant.value = null;
   };
 
-  const saveEditing = (expenses: Expense[]) => {
-    if (!editingParticipant.value) return false;
+  /**
+   * Renames the participant and reports the rename so the caller can apply it
+   * to the expenses too. Returns null when the edit was rejected.
+   */
+  const saveEditing = (): ParticipantRename | null => {
+    if (!editingParticipant.value) return null;
 
-    const error = validateParticipantName(
-      editingParticipant.value.new,
-      editingParticipant.value.original
-    );
+    const { original } = editingParticipant.value;
+    const name = editingParticipant.value.new.trim();
+    const error = validateParticipantName(name, original);
 
     if (error) {
       participantError.value = error;
-      return false;
+      return null;
     }
 
-    expenses.forEach((expense) => {
-      if (expense.payer === editingParticipant.value?.original) {
-        expense.payer = editingParticipant.value.new;
-      }
-    });
-
-    const index = participants.value.indexOf(editingParticipant.value.original);
-    if (index !== -1) {
-      participants.value[index] = editingParticipant.value.new;
-    }
+    participants.value = participants.value.map((p) =>
+      p === original ? name : p
+    );
 
     editingParticipant.value = null;
     participantError.value = "";
-    _saveIntoMemory();
-    return true;
+    persist();
+    return { from: original, to: name };
   };
 
   const confirmRemove = (name: string) => {
@@ -107,35 +120,37 @@ export const useParticipantsStore = defineStore("participants", () => {
   const removeParticipant = (name: string) => {
     participants.value = participants.value.filter((p) => p !== name);
     showRemoveConfirm.value = null;
-    _saveIntoMemory();
+    persist();
   };
 
-  const canRemoveParticipant = (name: string, expenses: Expense[]) => {
-    return !expenses.some((expense) => expense.payer === name);
-  };
-
+  /**
+   * Uses each expense's own participant snapshot and the same cent split as
+   * the settlement, so netBalance always matches the settlement plan.
+   */
   const calculateParticipantStats = (
     participant: string,
-    expenses: Expense[],
-    totalParticipants: number
+    expenses: Expense[]
   ): ParticipantStats => {
-    const participantExpenses = expenses.filter((e) => e.payer === participant);
-    const totalPaid = participantExpenses.reduce((sum, e) => sum + e.amount, 0);
+    const paidExpenses = expenses.filter((e) => e.payer === participant);
+    const paidCents = paidExpenses.reduce(
+      (sum, e) => sum + toCents(e.amount),
+      0
+    );
 
-    const totalOwed = expenses.reduce((sum, e) => {
-      if (e.payer !== participant) {
-        return sum + e.amount / totalParticipants;
-      }
-      return sum;
+    // the payer owes their own share too — leaving it out overstates their credit
+    const owedCents = expenses.reduce((sum, expense) => {
+      const index = expense.participants.indexOf(participant);
+      if (index === -1) return sum;
+      return sum + sharesForExpense(expense)[index];
     }, 0);
 
     return {
-      totalPaid,
-      totalOwed,
-      netBalance: totalPaid - totalOwed,
-      numberOfExpenses: participantExpenses.length,
-      averageExpense: participantExpenses.length
-        ? totalPaid / participantExpenses.length
+      totalPaid: toEuro(paidCents),
+      totalOwed: toEuro(owedCents),
+      netBalance: toEuro(paidCents - owedCents),
+      numberOfExpenses: paidExpenses.length,
+      averageExpense: paidExpenses.length
+        ? toEuro(Math.round(paidCents / paidExpenses.length))
         : 0,
     };
   };
@@ -147,6 +162,7 @@ export const useParticipantsStore = defineStore("participants", () => {
     participantError,
     editingParticipant,
     showRemoveConfirm,
+    validateParticipantName,
     addParticipant,
     startEditing,
     cancelEditing,
@@ -154,7 +170,6 @@ export const useParticipantsStore = defineStore("participants", () => {
     confirmRemove,
     cancelRemove,
     removeParticipant,
-    canRemoveParticipant,
     calculateParticipantStats,
   };
 });

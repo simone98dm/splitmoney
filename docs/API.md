@@ -1,10 +1,94 @@
 # API Documentation
 
+## Pure modules
+
+The money maths lives outside the stores so it can be tested on its own.
+
+### `store/money.ts`
+
+##### `toCents(amount: number): number`
+
+Euros to integer cents. `toCents(10.005)` → `1001`.
+
+##### `toEuro(cents: number): number`
+
+Integer cents back to euros.
+
+##### `splitEvenly(totalCents: number, shareCount: number, offset?: number): number[]`
+
+Splits a total into shares summing to **exactly** `totalCents`. The indivisible
+remainder is handed out one cent at a time, starting at `offset` so the same
+person is not charged the extra cent on every expense.
+
+```typescript
+splitEvenly(1000, 3); // [334, 333, 333]
+splitEvenly(1000, 3, 1); // [333, 334, 333]
+```
+
+Throws if `totalCents` is not an integer.
+
+### `store/balance.ts`
+
+##### `sharesForExpense(expense: Expense): number[]`
+
+Per-person share of one expense in cents, aligned with `expense.participants`.
+Single source of truth — balances, settlement and stats all go through it.
+Throws if the expense has no participants.
+
+##### `calculateBalancesInCents(expenses: Expense[], roster: string[]): Record<string, number>`
+
+Net position of everyone involved, in integer cents. Positive = must receive.
+**Always sums to exactly zero.**
+
+`roster` only seeds who is displayed at zero; anyone who paid for or took part
+in an expense is included even if they were since removed from the roster.
+
+##### `calculateBalances(expenses: Expense[], roster: string[]): Record<string, number>`
+
+Same thing in euros.
+
+```typescript
+calculateBalances(expenses, ["Alice", "Bob", "Charlie"]);
+// { Alice: 30, Bob: 0, Charlie: -30 }
+```
+
+### `store/storage.ts`
+
+localStorage is a trust boundary — the user can edit it, another tab can
+corrupt it, an old build can have written a different shape. Nothing comes back
+out unvetted.
+
+##### `readStored<T>(key, parse, fallback): T`
+
+Reads and JSON-parses `key`, then hands the raw value to `parse`. Returns
+`fallback` when the entry is missing, unreadable, not valid JSON, or rejected.
+
+##### `writeStored(key, value): boolean`
+
+Returns `false` instead of throwing when the write fails (quota exceeded,
+storage disabled).
+
+##### `parseNameList(raw): string[] | null`
+
+Keeps only the non-empty strings, without duplicates — a duplicated name would
+be charged two shares of every expense.
+
+### `store/settlement.ts`
+
+##### `settleDebts(balancesInCents: Record<string, number>): Transfer[]`
+
+Turns a balance sheet into the payment plan that clears it. Two passes: exact
+pairing, then greedy largest-against-largest. See
+[ALGORITHMS.md](ALGORITHMS.md).
+
+**Throws** if the sheet does not sum to zero or contains fractional cents —
+a wrong plan is worse than no plan.
+
+---
+
 ## Pinia Stores
 
 ### Participant Store
-
-**Import:**
 
 ```typescript
 import { useParticipantsStore } from "~/store/participant";
@@ -12,108 +96,60 @@ import { useParticipantsStore } from "~/store/participant";
 
 #### State
 
-| Property             | Type                                        | Description                      |
-| -------------------- | ------------------------------------------- | -------------------------------- |
-| `participants`       | `string[]`                                  | Array of participant names       |
-| `newParticipant`     | `string`                                    | Input value for new participant  |
-| `participantError`   | `string`                                    | Error message for validation     |
-| `editingParticipant` | `{ original: string; new: string } \| null` | Currently editing participant    |
-| `showRemoveConfirm`  | `string \| null`                            | Participant name pending removal |
+| Property | Type | Description |
+| --- | --- | --- |
+| `participants` | `string[]` | Roster of participant names |
+| `newParticipant` | `string` | Input value for new participant |
+| `participantError` | `string` | Validation error message |
+| `editingParticipant` | `{ original: string; new: string } \| null` | Participant being renamed |
+| `showRemoveConfirm` | `string \| null` | Participant pending removal |
 
-#### Computed Properties
+#### Computed
 
-| Property             | Type       | Description                        |
-| -------------------- | ---------- | ---------------------------------- |
-| `sortedParticipants` | `string[]` | Alphabetically sorted participants |
+| Property | Type | Description |
+| --- | --- | --- |
+| `sortedParticipants` | `string[]` | Alphabetically sorted roster |
 
 #### Methods
 
 ##### `addParticipant(): boolean`
 
-Adds a new participant to the list.
+Adds `newParticipant` (trimmed) to the roster. Returns `false` and sets
+`participantError` when the name is empty, over 20 characters, or a
+case-insensitive duplicate.
 
-**Returns:** `true` if successful, `false` if validation fails
+##### `validateParticipantName(name, excludeCurrent?): string`
 
-**Validation:**
+Returns an error message, or an empty string when valid.
 
-- Name cannot be empty
-- Name must be ≤ 20 characters
-- Name must be unique (case-insensitive)
+##### `startEditing(name: string): void` / `cancelEditing(): void`
 
-**Example:**
+Enter and leave rename mode.
 
-```typescript
-const store = useParticipantsStore();
-store.newParticipant = "Alice";
-const success = store.addParticipant();
-```
+##### `saveEditing(): ParticipantRename | null`
 
-##### `validateParticipantName(name: string, excludeCurrent?: string): string`
+Applies the rename to the **roster only** and returns `{ from, to }`, or `null`
+when validation fails.
 
-Validates a participant name.
+> Do not call this directly. Names are the identity here, so a rename that stops
+> at the roster leaves the old name in the expense snapshots as a phantom
+> debtor. Use `useExpenseSplitterStore().commitRename()`, which applies both
+> halves.
 
-**Parameters:**
+##### `confirmRemove(name)` / `cancelRemove()` / `removeParticipant(name)`
 
-- `name`: The name to validate
-- `excludeCurrent`: Optional name to exclude from uniqueness check (for editing)
+Removal flow. The UI only offers removal to participants whose balance is
+zero; removing anyone else would hide an open debt.
 
-**Returns:** Error message string, or empty string if valid
+##### `calculateParticipantStats(participant: string, expenses: Expense[]): ParticipantStats`
 
-##### `startEditing(name: string): void`
-
-Initiates editing mode for a participant.
-
-##### `cancelEditing(): void`
-
-Cancels the current edit operation.
-
-##### `saveEditing(expenses: Expense[]): boolean`
-
-Saves the edited participant name and updates related expenses.
-
-**Parameters:**
-
-- `expenses`: Array of expenses to update payer references
-
-**Returns:** `true` if successful, `false` if validation fails
-
-##### `confirmRemove(name: string): void`
-
-Shows confirmation dialog for removing a participant.
-
-##### `cancelRemove(): void`
-
-Cancels the removal confirmation.
-
-##### `removeParticipant(name: string): void`
-
-Removes a participant from the list.
-
-##### `canRemoveParticipant(name: string, expenses: Expense[]): boolean`
-
-Checks if a participant can be removed (no expenses associated).
-
-##### `calculateParticipantStats(participant: string, expenses: Expense[], totalParticipants: number): ParticipantStats`
-
-Calculates detailed statistics for a participant.
-
-**Returns:**
-
-```typescript
-{
-  totalPaid: number,        // Total amount paid by participant
-  totalOwed: number,        // Total amount owed to others
-  netBalance: number,       // Net balance (positive = owed, negative = owes)
-  numberOfExpenses: number, // Number of expenses paid
-  averageExpense: number    // Average expense amount
-}
-```
+Per-person figures, computed from each expense's own participant snapshot and
+the same cent split as the settlement, so `netBalance` always agrees with the
+payment plan. The payer is charged their own share.
 
 ---
 
 ### Expense Store
-
-**Import:**
 
 ```typescript
 import { useExpenseSplitterStore } from "~/store/expense";
@@ -121,101 +157,57 @@ import { useExpenseSplitterStore } from "~/store/expense";
 
 #### State
 
-| Property      | Type                                                     | Description                     |
-| ------------- | -------------------------------------------------------- | ------------------------------- |
-| `expenses`    | `Expense[]`                                              | Array of all expenses           |
-| `settlements` | `Transfer[]`                                             | Calculated settlement transfers |
-| `newExpense`  | `{ payer: string; amount: string; description: string }` | Form data for new expense       |
+| Property | Type | Description |
+| --- | --- | --- |
+| `expenses` | `Expense[]` | All recorded expenses |
+| `expenseError` | `string` | Validation error message |
+| `newExpense` | `{ payer: string; amount: string; description: string }` | New expense form |
 
-#### Computed Properties
+#### Computed
 
-| Property        | Type      | Description                |
-| --------------- | --------- | -------------------------- |
-| `hasExpenses`   | `boolean` | Whether any expenses exist |
-| `totalExpenses` | `number`  | Sum of all expense amounts |
+| Property | Type | Description |
+| --- | --- | --- |
+| `hasExpenses` | `boolean` | Whether any expense exists |
+| `totalExpenses` | `number` | Sum of all expense amounts |
+| `balances` | `Record<string, number>` | Net position per person, in euros |
+| `settlements` | `Transfer[]` | The payment plan |
+| `settlementError` | `string` | Non-empty when the plan could not be computed |
+
+`balances` and `settlements` are **derived, never stored**. Adding, removing or
+renaming anything recomputes them; there is no "calculate" action to forget to
+call.
+
+#### Persistence
+
+Expenses are written to `localStorage` on every change and restored on startup,
+so a refresh no longer wipes them while the roster survives. Restored entries
+go through the same validation as fresh input — a malformed one is dropped
+rather than allowed to poison the balance sheet, and duplicate ids are
+discarded.
 
 #### Methods
 
-##### `addExpense(): void`
+##### `addExpense(): boolean`
 
-Adds a new expense to the list.
+Adds `newExpense` to the list and resets the form. Returns `false` and sets
+`expenseError` when the amount is not a finite number in `(0, 1000000]`, or
+when the payer is not on the current roster.
 
-**Requirements:**
+The new expense stores a **snapshot** of the current roster in
+`expense.participants`, so later roster changes never re-split it.
 
-- `newExpense.payer` must be set
-- `newExpense.amount` must be a valid number
+##### `removeExpense(id: string): void`
 
-**Example:**
+Removes an expense by id.
 
-```typescript
-const store = useExpenseSplitterStore();
-store.newExpense = {
-  payer: "Alice",
-  amount: "50",
-  description: "Dinner",
-};
-store.addExpense();
-```
+##### `commitRename(): ParticipantRename | null`
 
-##### `removeExpense(id: number): void`
-
-Removes an expense by ID.
-
-**Parameters:**
-
-- `id`: The unique identifier of the expense to remove
-
-##### `calculateBalances(expenses: Expense[], participants: string[]): Record<string, number>`
-
-Calculates net balance for each participant.
-
-**Algorithm:**
-
-1. Initialize all balances to 0
-2. For each expense:
-   - Divide amount equally among all participants
-   - Subtract share from each participant's balance
-   - Add full amount to payer's balance
-
-**Returns:** Object mapping participant names to their net balance
-
-**Example:**
+Commits the pending rename across **both** the roster and every expense
+snapshot, in one call. Returns `null` when there is nothing pending or the new
+name is rejected.
 
 ```typescript
-const balances = store.calculateBalances(expenses, ["Alice", "Bob", "Charlie"]);
-// { Alice: 30, Bob: 0, Charlie: -30 }
-```
-
-##### `calculateSettlements(): void`
-
-Generates optimal settlement plan using greedy algorithm.
-
-**Algorithm:**
-
-1. Calculate balances for all participants
-2. Separate into debtors (negative balance) and creditors (positive balance)
-3. Sort both arrays by amount (descending)
-4. Match largest debtor with largest creditor
-5. Create transfer for the minimum of the two amounts
-6. Repeat until all balances are settled
-
-**Updates:** `settlements` array with `Transfer` objects
-
-**Example:**
-
-```typescript
-store.calculateSettlements();
-// settlements = [{ from: 'Charlie', to: 'Alice', amount: 30 }]
-```
-
-##### `roundAmount(amount: number): number`
-
-Rounds amount to 2 decimal places.
-
-**Example:**
-
-```typescript
-store.roundAmount(10.666); // returns 10.67
+splitterStore.commitRename();
 ```
 
 ---
@@ -226,11 +218,12 @@ store.roundAmount(10.666); // returns 10.67
 
 ```typescript
 interface Expense {
-  id: number; // Unique identifier (timestamp)
-  payer: string; // Name of person who paid
-  amount: number; // Amount paid
+  id: string; // Unique identifier
+  payer: string; // Who paid
+  amount: number; // Amount paid, in euros
   description: string; // Optional description
-  timestamp: number; // Creation timestamp
+  participants: string[]; // Frozen snapshot of who it is split among
+  timestamp: number; // Creation time; also rotates the leftover cents
 }
 ```
 
@@ -240,16 +233,7 @@ interface Expense {
 interface Transfer {
   from: string; // Person who owes money
   to: string; // Person who should receive money
-  amount: number; // Amount to transfer
-}
-```
-
-### Balance
-
-```typescript
-interface Balance {
-  person: string; // Participant name
-  amount: number; // Balance amount
+  amount: number; // Amount to transfer, in euros
 }
 ```
 
@@ -257,20 +241,20 @@ interface Balance {
 
 ```typescript
 interface ParticipantStats {
-  totalPaid: number; // Total amount paid
-  totalOwed: number; // Total amount owed to others
-  netBalance: number; // Net balance
-  numberOfExpenses: number; // Number of expenses paid
-  averageExpense: number; // Average expense amount
+  totalPaid: number; // Total this person paid out
+  totalOwed: number; // Their share of every expense they were part of
+  netBalance: number; // totalPaid - totalOwed
+  numberOfExpenses: number; // Expenses they paid for
+  averageExpense: number; // Average of those
 }
 ```
 
-### Participant
+### ParticipantRename
 
 ```typescript
-interface Participant {
-  id: number; // Unique identifier
-  name: string; // Participant name
+interface ParticipantRename {
+  from: string;
+  to: string;
 }
 ```
 
@@ -278,32 +262,6 @@ interface Participant {
 
 ## Component Props
 
-### ExpenseForm
-
-No props - uses store state directly
-
-### ExpenseList
-
-No props - uses store state directly
-
-### ExpenseResult
-
-No props - uses store state directly
-
-### ParticipantForm
-
-No props - uses store state directly
-
-### ParticipantList
-
-No props - uses store state directly
-
-### ParticipantStats
-
-No props - uses store state directly
-
----
-
-## Events
-
-All state changes are handled through Pinia stores. Components don't emit custom events as they directly mutate store state through actions.
+Only `ParticipantStats` takes a prop (`participant: string`). Every other
+component reads store state directly. State changes go through Pinia actions,
+so no component emits custom events.
