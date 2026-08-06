@@ -19,7 +19,18 @@ export default defineNuxtConfig({
           content:
             "SplitMoney - dividi le spese di gruppo e chiudi i conti con il minor numero di pagamenti",
         },
-        { name: "theme-color", content: "#09150a" },
+        // the browser chrome has to follow the theme too, or the status bar
+        // stays black over a light page
+        {
+          name: "theme-color",
+          content: "#09150a",
+          media: "(prefers-color-scheme: dark)",
+        },
+        {
+          name: "theme-color",
+          content: "#f1f5f1",
+          media: "(prefers-color-scheme: light)",
+        },
       ],
       link: [
         { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },

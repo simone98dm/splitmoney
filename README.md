@@ -15,7 +15,10 @@ A modern, intuitive expense splitting application built with Nuxt 3 and Pinia. D
 - **📈 Statistics**: View detailed stats for each participant (total paid, owed, net balance)
 - **💾 Local Storage**: Automatically saves participants between sessions
 - **📱 Responsive Design**: Works seamlessly on mobile and desktop
-- **🎨 Modern UI**: Clean interface built with TailwindCSS
+- **🎨 Design tokens**: Light and dark themes that follow the device, every
+  colour pair verified against WCAG AA
+- **♿ Accessible**: debt and credit are readable without colour — sign, label
+  and position carry the meaning
 - **🧪 Tested**: Comprehensive test coverage with Vitest
 
 ## 🚀 Tech Stack

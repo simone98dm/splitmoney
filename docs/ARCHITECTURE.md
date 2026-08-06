@@ -73,6 +73,27 @@ payments that close it.
     alone
   - `Icon*.vue`: one hand-rolled stroke set (no icon dependency)
 
+### `/assets/css/main.css`
+
+The design tokens. Two themes, both composed rather than inverted: elevation
+reverses (raised surfaces are lighter than the page in light, darker in dark)
+and the amber signal drops from `L 0.80` to `L 0.52` so it still clears 4.5:1
+on a pale ground.
+
+The theme follows the device through `@media (prefers-color-scheme: light)`.
+No JavaScript, no stored preference, no first-paint flash, and it tracks the
+OS live. `color-scheme` is set per theme so form controls and scrollbars
+follow, and `theme-color` ships as two media-scoped meta tags so the browser
+chrome matches.
+
+Every colour pair was verified against WCAG and checked to sit inside the sRGB
+gamut before shipping — a clipped colour is not the colour you measured. The
+ratios are recorded at the top of the file.
+
+Components must use the semantic Tailwind names (`bg-surface`, `text-ink`),
+never a raw palette utility. A `bg-white` survives a theme switch by accident
+at best.
+
 ### `/store`
 
 Pinia stores for state management:

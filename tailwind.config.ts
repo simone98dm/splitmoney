@@ -16,6 +16,7 @@ export default <Partial<Config>>{
         "line-strong": "var(--line-strong)",
         ink: "var(--ink)",
         "ink-muted": "var(--ink-muted)",
+        "ink-hover": "var(--ink-hover)",
         owe: "var(--owe)",
         danger: "var(--danger)",
       },

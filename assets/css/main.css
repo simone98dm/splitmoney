@@ -3,16 +3,22 @@
 @tailwind utilities;
 
 /*
- * Palette: a deep moss ground carries the surface (Committed strategy).
+ * Palette: a moss ground carries the surface (Committed strategy).
  *
  * The green never touches a figure. Money speaks with exactly two signals —
- * bone-white for "you are owed", amber for "you owe" — so there is no
- * red/green pair to fail on, and the reading survives greyscale. Sign and
- * label carry the meaning; color only reinforces it.
+ * ink for "you are owed", amber for "you owe" — so there is no red/green pair
+ * to fail on, and the reading survives greyscale. Sign and label carry the
+ * meaning; color only reinforces it.
  *
- * Every pair below was verified against WCAG before shipping:
- * ink/bg 17.2:1 · muted/bg 8.2:1 · owe/bg 9.8:1 · danger/bg 6.0:1
- * line-strong/bg 4.1:1 (controls need 3:1) · focus/bg 17.2:1
+ * Dark is the default: the app is opened at the end of a dinner, in low light,
+ * with several people leaning over one phone. Light follows the device.
+ *
+ * Every pair was verified against WCAG before shipping, and every value was
+ * checked to sit inside the sRGB gamut — a clipped color is not the color you
+ * measured.
+ *
+ *   dark   ink/bg 17.2:1 · muted 8.2:1 · owe 9.8:1 · danger 6.0:1 · line 4.1:1
+ *   light  ink/bg 14.8:1 · muted 5.9:1 · owe 5.1:1 · danger 5.7:1 · line 3.3:1
  */
 @layer base {
   :root {
@@ -31,6 +37,10 @@
     --owe: oklch(0.8 0.15 75);
     --danger: oklch(0.68 0.19 25);
 
+    /* primary buttons are filled with --ink, so hover moves away from the
+       page: brighter on a dark ground, darker on a light one */
+    --ink-hover: oklch(1 0 0);
+
     --space-2xs: 0.25rem;
     --space-xs: 0.5rem;
     --space-sm: 0.75rem;
@@ -46,6 +56,38 @@
     color-scheme: dark;
   }
 
+  /*
+   * Light follows the device, with no JS and no persistence: the media query
+   * tracks the OS live, so there is no first-paint flash and no stored
+   * preference to drift out of sync with the system.
+   *
+   * Composed, not inverted. Elevation reverses (in light, raised surfaces get
+   * lighter than the page, not darker), and the amber has to drop from L 0.80
+   * to L 0.52 to clear 4.5:1 on a pale ground — an inverted palette would
+   * have shipped an unreadable yellow.
+   */
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg: oklch(0.965 0.006 145);
+      --surface: oklch(0.995 0.002 145);
+      --surface-high: oklch(1 0 0);
+
+      --line: oklch(0.9 0.01 145);
+      --line-strong: oklch(0.62 0.016 145);
+
+      --ink: oklch(0.24 0.024 145);
+      --ink-muted: oklch(0.48 0.018 145);
+
+      /* hue stays in the amber family so the signal reads as the same one */
+      --owe: oklch(0.52 0.112 70);
+      --danger: oklch(0.51 0.18 25);
+
+      --ink-hover: oklch(0.14 0.02 145);
+
+      color-scheme: light;
+    }
+  }
+
   html {
     background-color: var(--bg);
     /* dvh, not vh: the mobile URL bar makes 100vh overflow */
@@ -56,9 +98,14 @@
     background-color: var(--bg);
     color: var(--ink);
     font-kerning: normal;
-    /* light-on-dark reads heavier, so open the tracking a touch */
-    letter-spacing: 0.01em;
     -webkit-font-smoothing: antialiased;
+  }
+
+  /* light-on-dark reads heavier; the compensation is wrong in the light theme */
+  @media (prefers-color-scheme: dark) {
+    body {
+      letter-spacing: 0.01em;
+    }
   }
 
   /* every figure in the app: digits must not change width as values update */
@@ -96,8 +143,9 @@
            disabled:opacity-40 disabled:cursor-not-allowed;
   }
 
+  /* hover:bg-white would have gone white-on-pale in the light theme */
   .btn-primary {
-    @apply btn bg-ink text-bg hover:bg-white disabled:hover:bg-ink;
+    @apply btn bg-ink text-bg hover:bg-ink-hover disabled:hover:bg-ink;
   }
 
   .btn-ghost {
