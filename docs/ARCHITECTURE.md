@@ -317,17 +317,28 @@ Result: 2 transactions instead of potential 3+
 
 ### Implementation
 
-```typescript
-// Save to localStorage
-const _saveIntoMemory = () => {
-  localStorage.setItem("participants", JSON.stringify(participants.value));
-};
+Both stores go through `store/storage.ts`, which treats everything read back
+as untrusted: a parser vets the shape before it reaches the ledger, and a
+failed write is reported rather than thrown.
 
-// Load from localStorage (on store initialization)
-const participants = toRef<string[]>(
-  JSON.parse(localStorage.getItem("participants") || '["A", "B", "C"]')
+```typescript
+// Load (on store initialization) — parseNameList drops non-strings,
+// blanks and duplicates; a duplicate would be charged two shares
+const participants = ref<string[]>(
+  readStored(STORAGE_KEY, parseNameList, [...DEFAULT_PARTICIPANTS])
 );
+
+// Save
+const persist = () => {
+  if (!writeStored(STORAGE_KEY, participants.value)) {
+    participantError.value = "Impossibile salvare i partecipanti";
+  }
+};
 ```
+
+Three keys are stored: `participants`, `expenses`, and `me` (who is holding
+the phone). They are independent — one being cleared or corrupted never takes
+the others down.
 
 ## Performance Considerations
 
@@ -336,7 +347,8 @@ const participants = toRef<string[]>(
 1. **Computed Properties**: Only recalculate when dependencies change
 2. **Minimal Re-renders**: Precise reactivity reduces unnecessary updates
 3. **Client-Side Only**: No server round-trips (SSR disabled)
-4. **Lazy Calculations**: Settlements calculated only when requested
+4. **Derived, not stored**: balances and settlements are computed values, so
+   they cannot go stale behind the data that produced them
 
 ### Scalability Limits
 

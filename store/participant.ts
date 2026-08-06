@@ -7,7 +7,7 @@ import { parseNameList, readStored, writeStored } from "~/store/storage";
 
 const STORAGE_KEY = "participants";
 const ME_STORAGE_KEY = "me";
-const DEFAULT_PARTICIPANTS = ["A", "B", "C"];
+const DEFAULT_PARTICIPANTS = ["Simone", "Gennaro", "Michele"];
 const MAX_NAME_LENGTH = 20;
 
 export interface ParticipantRename {

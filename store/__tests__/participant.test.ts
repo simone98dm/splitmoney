@@ -21,7 +21,11 @@ describe("Participants Store", () => {
   describe("Loading", () => {
     it("falls back to the defaults when storage holds garbage", () => {
       localStorage.setItem("participants", "{not json");
-      expect(useParticipantsStore().participants).toEqual(["A", "B", "C"]);
+      expect(useParticipantsStore().participants).toEqual([
+        "Simone",
+        "Gennaro",
+        "Michele",
+      ]);
     });
 
     it("drops non-string entries from storage", () => {
