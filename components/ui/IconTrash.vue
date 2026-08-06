@@ -1,0 +1,15 @@
+<template>
+  <svg
+    width="18"
+    height="18"
+    viewBox="0 0 24 24"
+    fill="none"
+    stroke="currentColor"
+    stroke-width="1.75"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    aria-hidden="true"
+  >
+    <path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14" />
+  </svg>
+</template>

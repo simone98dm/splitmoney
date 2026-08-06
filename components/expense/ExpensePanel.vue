@@ -1,19 +1,23 @@
 <template>
-  <div>
-    <h3 class="text-xl font-semibold mb-4">Costi da splittare</h3>
-    <!-- Form per aggiungere spese -->
+  <section aria-labelledby="expenses-heading">
+    <div class="flex items-baseline justify-between gap-3">
+      <h2 id="expenses-heading" class="text-xl font-semibold">Le spese</h2>
+      <p v-if="hasExpenses" class="tnum text-sm text-ink-muted">
+        {{ formatEuro(totalExpenses) }}
+      </p>
+    </div>
+
     <ExpenseForm />
-
-    <!-- Lista delle spese -->
     <ExpenseList />
-
-    <!-- Risultati -->
-    <ExpenseResult />
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import ExpenseResult from "~/components/expense/ExpenseResult.vue";
+import { storeToRefs } from "pinia";
 import ExpenseForm from "~/components/expense/ExpenseForm.vue";
 import ExpenseList from "~/components/expense/ExpenseList.vue";
+import { useExpenseSplitterStore } from "~/store/expense";
+import { formatEuro } from "~/store/money";
+
+const { hasExpenses, totalExpenses } = storeToRefs(useExpenseSplitterStore());
 </script>

@@ -1,65 +1,84 @@
 <template>
-  <span v-if="participants.length <= 0">
-    <h3 class="text-gray-500 font-semibold mb-4">
-      Inserisci almeno un partecipante
-    </h3>
-  </span>
-  <div v-else class="mb-6">
-    <div
-      class="grid grid-cols-1 sm:flex gap-2 border border-gray-200 rounded-lg shadow-sm p-4"
-    >
-      <select v-model="newExpense.payer" class="p-2 border rounded">
-        <option
-          v-for="participant in participants"
-          :key="participant"
-          :value="participant"
-        >
-          {{ participant }}
-        </option>
-      </select>
-
-      <input
-        v-model="newExpense.amount"
-        type="number"
-        min="0.01"
-        step="0.01"
-        placeholder="Importo €"
-        class="p-2 border rounded sm:w-32"
-        @keyup.enter="splitterStore.addExpense"
-      />
-
-      <input
-        v-model="newExpense.description"
-        placeholder="Descrizione"
-        class="p-2 border rounded sm:flex-grow"
-        @keyup.enter="splitterStore.addExpense"
-      />
-
-      <button
-        @click="splitterStore.addExpense"
-        :disabled="!newExpense.amount"
-        class="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50"
-      >
-        +
-      </button>
-    </div>
-
-    <p v-if="expenseError" class="text-red-500 text-sm mt-1">
-      {{ expenseError }}
+  <div class="mt-3">
+    <p v-if="!participants.length" class="text-sm text-ink-muted">
+      Aggiungi prima almeno una persona.
     </p>
-    <p class="text-gray-500 text-xs mt-1">
-      La spesa verrà divisa tra i {{ participants.length }} partecipanti
-      attuali.
+
+    <form
+      v-else
+      class="rounded-panel border border-line bg-surface p-3 sm:p-4"
+      @submit.prevent="submit"
+    >
+      <div class="grid gap-2 sm:grid-cols-[minmax(0,7rem)_minmax(0,7rem)_1fr_auto]">
+        <div>
+          <label for="expense-payer" class="sr-only">Chi ha pagato</label>
+          <select id="expense-payer" v-model="newExpense.payer" class="field">
+            <option v-for="person in participants" :key="person" :value="person">
+              {{ person }}
+            </option>
+          </select>
+        </div>
+
+        <div>
+          <label for="expense-amount" class="sr-only">Importo in euro</label>
+          <input
+            id="expense-amount"
+            v-model="newExpense.amount"
+            class="field tnum"
+            type="number"
+            inputmode="decimal"
+            min="0.01"
+            step="0.01"
+            placeholder="Quanto?"
+            :aria-invalid="Boolean(expenseError)"
+            :aria-describedby="expenseError ? 'expense-error' : undefined"
+          />
+        </div>
+
+        <div>
+          <label for="expense-description" class="sr-only">Per cosa</label>
+          <input
+            id="expense-description"
+            v-model="newExpense.description"
+            class="field"
+            placeholder="Per cosa? (facoltativo)"
+            maxlength="60"
+          />
+        </div>
+
+        <!-- full width on mobile, so it always has room for its label -->
+        <button type="submit" class="btn-primary" :disabled="!newExpense.amount">
+          <IconPlus />
+          <span>Aggiungi</span>
+        </button>
+      </div>
+
+      <p class="mt-2 text-xs text-ink-muted">
+        Divisa tra le {{ participants.length }} persone di adesso. Chi entra dopo
+        non paga questa spesa.
+      </p>
+    </form>
+
+    <p
+      v-if="expenseError"
+      id="expense-error"
+      role="alert"
+      class="mt-2 text-sm text-danger"
+    >
+      {{ expenseError }}
     </p>
   </div>
 </template>
 
 <script setup lang="ts">
+import { storeToRefs } from "pinia";
+import IconPlus from "~/components/ui/IconPlus.vue";
 import { useExpenseSplitterStore } from "~/store/expense";
 import { useParticipantsStore } from "~/store/participant";
-import { storeToRefs } from "pinia";
 
 const { participants } = storeToRefs(useParticipantsStore());
 const splitterStore = useExpenseSplitterStore();
 const { newExpense, expenseError } = storeToRefs(splitterStore);
+
+const submit = () => splitterStore.addExpense();
 </script>

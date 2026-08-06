@@ -2,9 +2,12 @@ export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   ssr: false,
   modules: ["@nuxtjs/tailwindcss", "@pinia/nuxt"],
+  // cssPath, not the `css` array: the array would load this file *alongside*
+  // the module's default one and emit the @tailwind directives twice
+  tailwindcss: { cssPath: "~/assets/css/main.css" },
   app: {
     head: {
-      title: "Expense Splitter",
+      title: "SplitMoney",
       charset: "utf-8",
       viewport: "width=device-width, initial-scale=1",
       htmlAttrs: {
@@ -14,8 +17,9 @@ export default defineNuxtConfig({
         {
           name: "description",
           content:
-            "Expense Splitter - splitta le spese in maniera uguale tra i tuoi amici",
+            "SplitMoney - dividi le spese di gruppo e chiudi i conti con il minor numero di pagamenti",
         },
+        { name: "theme-color", content: "#09150a" },
       ],
       link: [
         { rel: "icon", type: "image/x-icon", href: "/favicon.ico" },

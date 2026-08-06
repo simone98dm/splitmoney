@@ -14,6 +14,12 @@ Euros to integer cents. `toCents(10.005)` → `1001`.
 
 Integer cents back to euros.
 
+##### `formatEuro(amount: number): string` / `formatSignedEuro(amount: number): string`
+
+Italian formatting, always two decimals: `1.234,50 €`. The signed variant
+prefixes `+` or `−` (U+2212, which aligns with the digits). Prefer
+`MoneyFigure` in components; use these directly only for prose.
+
 ##### `splitEvenly(totalCents: number, shareCount: number, offset?: number): number[]`
 
 Splits a total into shares summing to **exactly** `totalCents`. The indivisible
@@ -109,6 +115,14 @@ import { useParticipantsStore } from "~/store/participant";
 | Property | Type | Description |
 | --- | --- | --- |
 | `sortedParticipants` | `string[]` | Alphabetically sorted roster |
+| `isMeAnswered` | `boolean` | Whether the "who are you" question has been answered at all |
+| `isMeSelected` | `boolean` | Whether `me` names someone currently on the roster |
+
+`me` holds who is holding the phone, so the header can answer "what do *I*
+owe" without a login: `null` = never answered (show the prompt), `""` =
+skipped (fall back to group totals), a name = show that balance. Set it with
+`setMe(name)`, `skipMe()`, or `clearMe()`. It follows renames and resets if
+that person is removed.
 
 #### Methods
 
@@ -262,6 +276,15 @@ interface ParticipantRename {
 
 ## Component Props
 
-Only `ParticipantStats` takes a prop (`participant: string`). Every other
-component reads store state directly. State changes go through Pinia actions,
-so no component emits custom events.
+Two components take props:
+
+- `ParticipantRow` — `participant: string`
+- `MoneyFigure` — `amount: number`, `size?: "display" | "row" | "base" | "sm"`,
+  `signed?: boolean` (default `true`)
+
+Every other component reads store state directly. State changes go through
+Pinia actions, so no component emits custom events.
+
+`MoneyFigure` is the only place an amount is rendered. It owns the sign, the
+tabular figures and the color together, which is what keeps debt and credit
+distinguishable without color (WCAG 1.4.1). Do not format an amount inline.

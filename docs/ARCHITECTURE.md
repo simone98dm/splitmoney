@@ -42,20 +42,36 @@ SplitMoney is built as a Single Page Application (SPA) using Nuxt 3 with client-
 
 ### `/components`
 
-Vue components organized by feature:
+Vue components organized by feature. The screen reads top to bottom as one
+answer: your balance, then the people, then the expenses behind them, then the
+payments that close it.
 
-- **`/expense`**: Expense management components
+- **`/balance`**: the answer the user opened the app for
 
-  - `ExpenseForm.vue`: Input form for adding expenses
-  - `ExpenseList.vue`: Display and manage expense list
-  - `ExpensePanel.vue`: Container component
-  - `ExpenseResult.vue`: Settlement calculation display
+  - `BalanceHeader.vue`: sticky header showing *your* balance. Condenses to a
+    single line once scrolled, so it never costs the list a fifth of the screen
 
-- **`/participant`**: Participant management components
-  - `ParticipantForm.vue`: Input form for adding participants
-  - `ParticipantList.vue`: Display and manage participant list
-  - `ParticipantPanel.vue`: Container component
-  - `ParticipantStats.vue`: Individual statistics display
+- **`/participant`**: who is splitting
+
+  - `ParticipantPanel.vue`: section wrapper plus the add-person form
+  - `ParticipantRow.vue`: one person — name, live balance, and an expandable
+    breakdown that makes their figure traceable
+
+- **`/expense`**: what was paid
+
+  - `ExpensePanel.vue`: section wrapper
+  - `ExpenseForm.vue`: add an expense
+  - `ExpenseList.vue`: what has been entered, newest first
+
+- **`/settlement`**: how it ends
+
+  - `SettlementPlan.vue`: the numbered payments to make, or the settled state
+
+- **`/ui`**: shared primitives
+  - `MoneyFigure.vue`: every amount on screen. Owns the sign, the tabular
+    figures and the color, so no caller can render money that relies on color
+    alone
+  - `Icon*.vue`: one hand-rolled stroke set (no icon dependency)
 
 ### `/store`
 

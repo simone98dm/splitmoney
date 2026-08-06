@@ -6,6 +6,7 @@ import { sharesForExpense } from "~/store/balance";
 import { parseNameList, readStored, writeStored } from "~/store/storage";
 
 const STORAGE_KEY = "participants";
+const ME_STORAGE_KEY = "me";
 const DEFAULT_PARTICIPANTS = ["A", "B", "C"];
 const MAX_NAME_LENGTH = 20;
 
@@ -18,6 +19,43 @@ export const useParticipantsStore = defineStore("participants", () => {
   const participants = ref<string[]>(
     readStored(STORAGE_KEY, parseNameList, [...DEFAULT_PARTICIPANTS])
   );
+  /**
+   * Who is holding the phone. The top of the screen answers "what do *I*
+   * owe", and there is no login to answer that, so the user names themselves
+   * once and we remember it.
+   *
+   *   null  -> never answered, show the prompt
+   *   ""    -> deliberately skipped, fall back to group totals
+   *   name  -> show that person's balance
+   *
+   * Nothing is ever blocked on answering.
+   */
+  const me = ref<string | null>(
+    readStored(
+      ME_STORAGE_KEY,
+      (raw) => (typeof raw === "string" ? raw : null),
+      null
+    )
+  );
+
+  const isMeAnswered = computed(() => me.value !== null);
+  const isMeSelected = computed(
+    () => me.value !== null && me.value !== "" && participants.value.includes(me.value)
+  );
+
+  const setMe = (name: string) => {
+    me.value = name;
+    writeStored(ME_STORAGE_KEY, name);
+  };
+
+  const skipMe = () => setMe("");
+
+  /** Puts the "chi sei?" question back, and keeps it back after a reload. */
+  const clearMe = () => {
+    me.value = null;
+    writeStored(ME_STORAGE_KEY, null);
+  };
+
   const newParticipant = ref("");
   const participantError = ref("");
   const editingParticipant = ref<{ original: string; new: string } | null>(
@@ -103,6 +141,10 @@ export const useParticipantsStore = defineStore("participants", () => {
       p === original ? name : p
     );
 
+    // "me" points at a name, so it has to follow the rename or the header
+    // silently stops recognising the user
+    if (me.value === original) setMe(name);
+
     editingParticipant.value = null;
     participantError.value = "";
     persist();
@@ -119,6 +161,10 @@ export const useParticipantsStore = defineStore("participants", () => {
 
   const removeParticipant = (name: string) => {
     participants.value = participants.value.filter((p) => p !== name);
+
+    // removing yourself puts the question back on the table
+    if (me.value === name) clearMe();
+
     showRemoveConfirm.value = null;
     persist();
   };
@@ -158,6 +204,12 @@ export const useParticipantsStore = defineStore("participants", () => {
   return {
     participants,
     sortedParticipants,
+    me,
+    isMeAnswered,
+    isMeSelected,
+    setMe,
+    skipMe,
+    clearMe,
     newParticipant,
     participantError,
     editingParticipant,

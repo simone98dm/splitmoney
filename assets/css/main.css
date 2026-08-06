@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Palette: a deep moss ground carries the surface (Committed strategy).
+ *
+ * The green never touches a figure. Money speaks with exactly two signals —
+ * bone-white for "you are owed", amber for "you owe" — so there is no
+ * red/green pair to fail on, and the reading survives greyscale. Sign and
+ * label carry the meaning; color only reinforces it.
+ *
+ * Every pair below was verified against WCAG before shipping:
+ * ink/bg 17.2:1 · muted/bg 8.2:1 · owe/bg 9.8:1 · danger/bg 6.0:1
+ * line-strong/bg 4.1:1 (controls need 3:1) · focus/bg 17.2:1
+ */
+@layer base {
+  :root {
+    --bg: oklch(0.18 0.028 145);
+    --surface: oklch(0.235 0.03 145);
+    --surface-high: oklch(0.3 0.034 145);
+
+    /* dividers only; 1.4.11 exempts decoration */
+    --line: oklch(0.34 0.02 145);
+    /* borders of real controls */
+    --line-strong: oklch(0.56 0.022 145);
+
+    --ink: oklch(0.97 0.008 145);
+    --ink-muted: oklch(0.74 0.016 145);
+
+    --owe: oklch(0.8 0.15 75);
+    --danger: oklch(0.68 0.19 25);
+
+    --space-2xs: 0.25rem;
+    --space-xs: 0.5rem;
+    --space-sm: 0.75rem;
+    --space-md: 1rem;
+    --space-lg: 1.5rem;
+    --space-xl: 2.5rem;
+    --space-2xl: 4rem;
+
+    --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+
+    color-scheme: dark;
+  }
+
+  html {
+    background-color: var(--bg);
+    /* dvh, not vh: the mobile URL bar makes 100vh overflow */
+    min-height: 100dvh;
+  }
+
+  body {
+    background-color: var(--bg);
+    color: var(--ink);
+    font-kerning: normal;
+    /* light-on-dark reads heavier, so open the tracking a touch */
+    letter-spacing: 0.01em;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* every figure in the app: digits must not change width as values update */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: "tnum" 1;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--ink);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  /* the browser default ring is invisible on this ground */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+
+  ::selection {
+    background: var(--owe);
+    color: var(--bg);
+  }
+}
+
+@layer components {
+  /*
+   * One button shape for the whole surface. Every variant is 44px tall so
+   * touch targets never depend on the icon inside them.
+   */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded
+           min-h-[44px] px-4 text-sm font-medium
+           transition-colors duration-150 ease-out
+           disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-primary {
+    @apply btn bg-ink text-bg hover:bg-white disabled:hover:bg-ink;
+  }
+
+  .btn-ghost {
+    @apply btn border border-line-strong text-ink hover:bg-surface-high;
+  }
+
+  .btn-danger {
+    @apply btn bg-danger text-bg hover:brightness-110;
+  }
+
+  /* icon-only: 44px hit area regardless of the glyph size inside */
+  .btn-icon {
+    @apply inline-flex items-center justify-center rounded
+           h-11 w-11 shrink-0 text-ink-muted
+           transition-colors duration-150 ease-out
+           hover:bg-surface-high hover:text-ink;
+  }
+
+  .field {
+    @apply w-full rounded border border-line-strong bg-bg
+           min-h-[44px] px-3 text-base text-ink
+           placeholder:text-ink-muted
+           focus:border-ink;
+  }
+
+  /* small all-caps label; capitals need the extra tracking to breathe */
+  .eyebrow {
+    @apply text-2xs font-semibold uppercase text-ink-muted;
+  }
+
+  /*
+   * A figure that just changed value gets one short flash. It is the only
+   * choreographed motion in the app: after adding an expense, several
+   * numbers move at once and the flash says which ones.
+   */
+  @keyframes figure-settle {
+    from {
+      opacity: 0.35;
+      transform: translateY(-0.12em);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  .figure-settle {
+    animation: figure-settle var(--duration-base) var(--ease-out-quint);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

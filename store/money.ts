@@ -12,6 +12,26 @@ export const toCents = (amount: number): number =>
 
 export const toEuro = (cents: number): number => cents / CENTS_PER_UNIT;
 
+const EURO = new Intl.NumberFormat("it-IT", {
+  style: "currency",
+  currency: "EUR",
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+});
+
+/** Always two decimals, Italian separators: 1.234,50 €. */
+export const formatEuro = (amount: number): string => EURO.format(amount);
+
+/**
+ * Same, with an explicit + or −. The sign is what makes a balance readable
+ * without color, so it is never optional on a figure that can go either way.
+ */
+export const formatSignedEuro = (amount: number): string => {
+  if (amount === 0) return EURO.format(0);
+  const sign = amount > 0 ? "+" : "−"; // U+2212, aligns with digits
+  return `${sign}${EURO.format(Math.abs(amount))}`;
+};
+
 /**
  * Splits `totalCents` into `shareCount` shares that sum back to EXACTLY
  * `totalCents`. The indivisible remainder is spread one cent at a time, so no
