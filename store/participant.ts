@@ -17,7 +17,7 @@ export interface ParticipantRename {
 
 export const useParticipantsStore = defineStore("participants", () => {
   const participants = ref<string[]>(
-    readStored(STORAGE_KEY, parseNameList, [...DEFAULT_PARTICIPANTS])
+    readStored(STORAGE_KEY, parseNameList, [...DEFAULT_PARTICIPANTS]),
   );
   /**
    * Who is holding the phone. The top of the screen answers "what do *I*
@@ -34,13 +34,16 @@ export const useParticipantsStore = defineStore("participants", () => {
     readStored(
       ME_STORAGE_KEY,
       (raw) => (typeof raw === "string" ? raw : null),
-      null
-    )
+      null,
+    ),
   );
 
   const isMeAnswered = computed(() => me.value !== null);
   const isMeSelected = computed(
-    () => me.value !== null && me.value !== "" && participants.value.includes(me.value)
+    () =>
+      me.value !== null &&
+      me.value !== "" &&
+      participants.value.includes(me.value),
   );
 
   const setMe = (name: string) => {
@@ -59,17 +62,17 @@ export const useParticipantsStore = defineStore("participants", () => {
   const newParticipant = ref("");
   const participantError = ref("");
   const editingParticipant = ref<{ original: string; new: string } | null>(
-    null
+    null,
   );
   const showRemoveConfirm = ref<string | null>(null);
 
   const sortedParticipants = computed(() =>
-    [...participants.value].sort((a, b) => a.localeCompare(b))
+    [...participants.value].sort((a, b) => a.localeCompare(b)),
   );
 
   const validateParticipantName = (
     name: string,
-    excludeCurrent = ""
+    excludeCurrent = "",
   ): string => {
     if (!name.trim()) {
       return "Il nome non può essere vuoto";
@@ -81,7 +84,7 @@ export const useParticipantsStore = defineStore("participants", () => {
 
     if (
       participants.value.some(
-        (p) => p !== excludeCurrent && p.toLowerCase() === name.toLowerCase()
+        (p) => p !== excludeCurrent && p.toLowerCase() === name.toLowerCase(),
       )
     ) {
       return "Questo nome è già in uso";
@@ -138,7 +141,7 @@ export const useParticipantsStore = defineStore("participants", () => {
     }
 
     participants.value = participants.value.map((p) =>
-      p === original ? name : p
+      p === original ? name : p,
     );
 
     // "me" points at a name, so it has to follow the rename or the header
@@ -175,12 +178,12 @@ export const useParticipantsStore = defineStore("participants", () => {
    */
   const calculateParticipantStats = (
     participant: string,
-    expenses: Expense[]
+    expenses: Expense[],
   ): ParticipantStats => {
     const paidExpenses = expenses.filter((e) => e.payer === participant);
     const paidCents = paidExpenses.reduce(
       (sum, e) => sum + toCents(e.amount),
-      0
+      0,
     );
 
     // the payer owes their own share too — leaving it out overstates their credit

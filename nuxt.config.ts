@@ -2,6 +2,7 @@ export default defineNuxtConfig({
   compatibilityDate: "2024-11-01",
   ssr: false,
   modules: ["@nuxtjs/tailwindcss", "@pinia/nuxt"],
+  extends: ["@simone98dm/layer"],
   // cssPath, not the `css` array: the array would load this file *alongside*
   // the module's default one and emit the @tailwind directives twice
   tailwindcss: { cssPath: "~/assets/css/main.css" },

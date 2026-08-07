@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, onTestFinished, vi } from "vitest";
 import { parseNameList, readStored, writeStored } from "../storage";
 
 describe("storage", () => {
@@ -28,9 +28,14 @@ describe("storage", () => {
 
     it("returns the fallback when storage itself throws", () => {
       localStorage.setItem("k", '["Alice"]');
-      vi.spyOn(localStorage, "getItem").mockImplementation(() => {
+      // localStorage's methods live on Storage.prototype, so the spy patches the
+      // prototype rather than the instance and vi.restoreAllMocks() in beforeEach
+      // does not undo it (vitest 4). Without this the mock leaks into every later
+      // test in the file.
+      const spy = vi.spyOn(localStorage, "getItem").mockImplementation(() => {
         throw new Error("storage disabled");
       });
+      onTestFinished(() => spy.mockRestore());
       expect(readStored("k", identity, ["fallback"])).toEqual(["fallback"]);
     });
 
@@ -47,9 +52,10 @@ describe("storage", () => {
     });
 
     it("reports failure instead of throwing when the quota is blown", () => {
-      vi.spyOn(localStorage, "setItem").mockImplementation(() => {
+      const spy = vi.spyOn(localStorage, "setItem").mockImplementation(() => {
         throw new Error("QuotaExceededError");
       });
+      onTestFinished(() => spy.mockRestore());
       expect(writeStored("k", ["Alice"])).toBe(false);
     });
   });
